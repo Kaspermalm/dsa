@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install pandas numpy scikit-learn matplotlib vaderSentiment python-dotenv requests hopsworks==4.2.10
+          pip install pandas numpy scikit-learn matplotlib vaderSentiment python-dotenv requests pyarrow "hopsworks[python]==4.2.10"
       
       - name: Run daily data fetch
         env:
