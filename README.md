@@ -109,7 +109,7 @@ make daily && make infer
 
 ## Automated Daily Updates
 
-A GitHub Actions workflow runs daily at 8 AM UTC to:
+A GitHub Actions workflow runs daily to:
 1. Fetch new DSA violations and news data
 2. Upload features to Hopsworks
 3. Run inference and update predictions
