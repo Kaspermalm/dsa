@@ -107,6 +107,21 @@ Daily updates:
 make daily && make infer
 ```
 
+## Automated Daily Updates
+
+A GitHub Actions workflow runs daily at 8 AM UTC to:
+1. Fetch new DSA violations and news data
+2. Upload features to Hopsworks
+3. Run inference and update predictions
+4. Commit updated CSVs to the repository
+
+To set up automation, add these secrets in **Settings → Secrets → Actions**:
+- `NEWS_API_TOKEN` - Your News API token
+- `HOPSWORKS_API_KEY` - Your Hopsworks API key
+- `HOPSWORKS_PROJECT` - Your Hopsworks project name
+
+You can also trigger the workflow manually from the **Actions** tab.
+
 ## Output Files
 
 ```
@@ -139,8 +154,8 @@ Walk-forward validation over 10 months (301 predictions):
 
 | Metric | Value | Interpretation |
 |--------|-------|----------------|
-| R² | 0.91 | Excellent - model captures trend |
-| MAPE | 63% | High - data has inherent volatility |
+| R² | 0.91 | Good - model captures trend |
+| MAPE | 63% | Bad - data has inherent volatility |
 | Within 10% error | 40% | |
 | Within 20% error | 57% | |
 
@@ -154,7 +169,7 @@ The high R² with high MAPE indicates the model captures the pattern/trend well,
 
 ### Key Finding
 
-News sentiment features contribute <0.1% to predictions. Content moderation appears driven by internal platform processes and schedules, not reactive to external news cycles.
+The high R² value indicates that the model works well. However, given the high (bad) MAPE value the underlying pattern is difficult to predict indicating that there are no obvious correlation between moderation of news and sentiment of the news.
 
 ### Data Overview
 
