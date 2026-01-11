@@ -45,6 +45,6 @@ jobs:
         run: |
           git config --global user.name 'GitHub Action'
           git config --global user.email 'action@github.com'
-          git add csv/*.csv
+          git add csv/dsa_violations.csv csv/dsa_news_combined.csv csv/predictions_history.csv csv/hindcast_results.csv csv/hindcast_metrics.csv 2>/dev/null || true
           git diff --staged --quiet || git commit -m "Daily update $(date +%Y-%m-%d)"
           git push
