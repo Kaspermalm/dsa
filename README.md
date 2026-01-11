@@ -187,9 +187,6 @@ The high R² value indicates that the model works well. However, given the high 
 
 ![Forecast](img/forecast_next_week.png)
 
-### Prediction Accuracy Tracking
-
-![Prediction Accuracy](img/prediction_accuracy.png)
 
 ## References
 
