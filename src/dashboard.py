@@ -41,6 +41,10 @@ except ImportError:
     COMBINED_CSV = "csv/dsa_news_combined.csv"
     PREDICTIONS_CSV = "csv/predictions_history.csv"
 
+# Hindcast files
+HINDCAST_CSV = "csv/hindcast_results.csv"
+HINDCAST_METRICS_CSV = "csv/hindcast_metrics.csv"
+
 
 # ============================================================================
 # PAGE CONFIG
@@ -75,6 +79,25 @@ def load_predictions():
         df['target_date'] = pd.to_datetime(df['target_date'])
         df['prediction_date'] = pd.to_datetime(df['prediction_date'])
         return df.sort_values('target_date', ascending=False)
+    return pd.DataFrame()
+
+
+@st.cache_data(ttl=3600)  # Cache for 1 hour (hindcast doesn't change often)
+def load_hindcast_results():
+    """Load hindcast backtesting results."""
+    if os.path.exists(HINDCAST_CSV):
+        df = pd.read_csv(HINDCAST_CSV)
+        df['target_date'] = pd.to_datetime(df['target_date'])
+        df['prediction_date'] = pd.to_datetime(df['prediction_date'])
+        return df
+    return pd.DataFrame()
+
+
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def load_hindcast_metrics():
+    """Load hindcast summary metrics."""
+    if os.path.exists(HINDCAST_METRICS_CSV):
+        return pd.read_csv(HINDCAST_METRICS_CSV)
     return pd.DataFrame()
 
 
@@ -215,7 +238,7 @@ def main():
         height=400
     )
     
-    st.plotly_chart(fig, width='stretch')
+    st.plotly_chart(fig, use_container_width=True)
     
     # ========================================================================
     # PREDICTIONS
@@ -271,7 +294,7 @@ def main():
                 height=350
             )
             
-            st.plotly_chart(fig2, width='stretch')
+            st.plotly_chart(fig2, use_container_width=True)
     else:
         st.info("No predictions available. Run `make infer` to generate forecasts.")
     
@@ -301,7 +324,193 @@ def main():
             height=300
         )
         
-        st.plotly_chart(fig3, width='stretch')
+        st.plotly_chart(fig3, use_container_width=True)
+    
+    # ========================================================================
+    # HINDCAST (BACKTESTING) RESULTS
+    # ========================================================================
+    
+    hindcast_df = load_hindcast_results()
+    hindcast_metrics = load_hindcast_metrics()
+    
+    if not hindcast_df.empty and not hindcast_metrics.empty:
+        st.header("🔬 Model Backtesting (Hindcast)")
+        st.markdown("""
+        *Walk-forward validation: Train on historical data, predict future days, compare to actuals.*
+        """)
+        
+        # Get overall metrics
+        overall = hindcast_metrics[hindcast_metrics['horizon'] == 'Overall']
+        if len(overall) > 0:
+            overall = overall.iloc[0]
+            
+            # Key hindcast metrics
+            hc_col1, hc_col2, hc_col3, hc_col4 = st.columns(4)
+            
+            with hc_col1:
+                st.metric(
+                    "Backtest R²",
+                    f"{overall['r2']:.3f}",
+                    help="R-squared score across all hindcast predictions"
+                )
+            
+            with hc_col2:
+                st.metric(
+                    "Backtest MAPE",
+                    f"{overall['mape']:.1f}%",
+                    help="Mean Absolute Percentage Error"
+                )
+            
+            with hc_col3:
+                st.metric(
+                    "Within 20% Error",
+                    f"{overall['pct_under_20']:.1f}%",
+                    help="Percentage of predictions within 20% of actual"
+                )
+            
+            with hc_col4:
+                st.metric(
+                    "Total Predictions",
+                    f"{int(overall['count']):,}",
+                    help="Number of hindcast predictions evaluated"
+                )
+        
+        # Tabs for different hindcast visualizations
+        hc_tab1, hc_tab2, hc_tab3 = st.tabs(["📊 Accuracy by Horizon", "📈 Actual vs Predicted", "📉 Error Distribution"])
+        
+        with hc_tab1:
+            # MAPE by forecast horizon
+            horizon_metrics = hindcast_metrics[hindcast_metrics['horizon'] != 'Overall'].copy()
+            horizon_metrics['day'] = horizon_metrics['horizon'].str.extract(r'(\d+)').astype(int)
+            horizon_metrics = horizon_metrics.sort_values('day')
+            
+            fig_horizon = go.Figure()
+            
+            # MAPE bars
+            fig_horizon.add_trace(go.Bar(
+                x=horizon_metrics['day'],
+                y=horizon_metrics['mape'],
+                name='MAPE (%)',
+                marker_color='#3498db',
+                text=[f"{v:.1f}%" for v in horizon_metrics['mape']],
+                textposition='outside'
+            ))
+            
+            fig_horizon.update_layout(
+                title="Prediction Accuracy Degrades with Longer Horizons",
+                xaxis_title="Forecast Horizon (Days Ahead)",
+                yaxis_title="Mean Absolute Percentage Error (%)",
+                height=400,
+                showlegend=False
+            )
+            
+            st.plotly_chart(fig_horizon, use_container_width=True)
+            
+            # Also show R² by horizon
+            fig_r2 = go.Figure()
+            fig_r2.add_trace(go.Scatter(
+                x=horizon_metrics['day'],
+                y=horizon_metrics['r2'],
+                mode='lines+markers',
+                name='R²',
+                line=dict(color='#27ae60', width=3),
+                marker=dict(size=10)
+            ))
+            
+            fig_r2.update_layout(
+                title="R² Score by Forecast Horizon",
+                xaxis_title="Forecast Horizon (Days Ahead)",
+                yaxis_title="R² Score",
+                height=300,
+                yaxis=dict(range=[0, 1])
+            )
+            
+            st.plotly_chart(fig_r2, use_container_width=True)
+        
+        with hc_tab2:
+            # Scatter plot of actual vs predicted
+            fig_scatter = go.Figure()
+            
+            fig_scatter.add_trace(go.Scatter(
+                x=hindcast_df['actual'],
+                y=hindcast_df['predicted'],
+                mode='markers',
+                marker=dict(
+                    size=5,
+                    color=hindcast_df['horizon'],
+                    colorscale='Blues',
+                    showscale=True,
+                    colorbar=dict(title='Horizon')
+                ),
+                text=[f"Day {h}" for h in hindcast_df['horizon']],
+                hovertemplate='Actual: %{x:,.0f}<br>Predicted: %{y:,.0f}<br>%{text}<extra></extra>'
+            ))
+            
+            # Perfect prediction line
+            min_val = min(hindcast_df['actual'].min(), hindcast_df['predicted'].min())
+            max_val = max(hindcast_df['actual'].max(), hindcast_df['predicted'].max())
+            fig_scatter.add_trace(go.Scatter(
+                x=[min_val, max_val],
+                y=[min_val, max_val],
+                mode='lines',
+                name='Perfect Prediction',
+                line=dict(color='red', dash='dash', width=2)
+            ))
+            
+            r2 = overall['r2'] if len(overall) > 0 else 0
+            fig_scatter.update_layout(
+                title=f"Hindcast: Actual vs Predicted (R² = {r2:.3f})",
+                xaxis_title="Actual DSA Violations",
+                yaxis_title="Predicted DSA Violations",
+                height=500,
+                showlegend=True
+            )
+            
+            st.plotly_chart(fig_scatter, use_container_width=True)
+        
+        with hc_tab3:
+            # Error distribution
+            fig_error = go.Figure()
+            
+            fig_error.add_trace(go.Histogram(
+                x=hindcast_df['pct_error'],
+                nbinsx=50,
+                marker_color='#3498db',
+                name='Percentage Error'
+            ))
+            
+            mean_error = hindcast_df['pct_error'].mean()
+            median_error = hindcast_df['pct_error'].median()
+            
+            fig_error.add_vline(x=mean_error, line_dash="dash", line_color="red",
+                               annotation_text=f"Mean: {mean_error:.1f}%")
+            fig_error.add_vline(x=median_error, line_dash="dash", line_color="orange",
+                               annotation_text=f"Median: {median_error:.1f}%")
+            
+            fig_error.update_layout(
+                title="Distribution of Prediction Errors",
+                xaxis_title="Percentage Error (%)",
+                yaxis_title="Frequency",
+                height=400
+            )
+            
+            st.plotly_chart(fig_error, use_container_width=True)
+            
+            # Summary stats
+            st.markdown("**Error Breakdown:**")
+            err_col1, err_col2, err_col3 = st.columns(3)
+            with err_col1:
+                pct_10 = (hindcast_df['pct_error'] < 10).mean() * 100
+                st.metric("Within 10% error", f"{pct_10:.1f}%")
+            with err_col2:
+                pct_20 = (hindcast_df['pct_error'] < 20).mean() * 100
+                st.metric("Within 20% error", f"{pct_20:.1f}%")
+            with err_col3:
+                pct_50 = (hindcast_df['pct_error'] < 50).mean() * 100
+                st.metric("Within 50% error", f"{pct_50:.1f}%")
+    else:
+        st.header("🔬 Model Backtesting (Hindcast)")
+        st.info("No hindcast data available. Run `make hindcast` to generate backtesting results.")
     
     # ========================================================================
     # DATA TABLE
@@ -310,7 +519,7 @@ def main():
     with st.expander("📋 View Raw Data"):
         st.dataframe(
             hist_df.tail(30).sort_values('date', ascending=False),
-            width='stretch'
+            use_container_width=True
         )
     
     # ========================================================================

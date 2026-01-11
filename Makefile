@@ -1,6 +1,6 @@
-.PHONY: backfill daily train infer clean all features train-hw infer-hw dashboard
+.PHONY: backfill daily train infer clean all features train-hw infer-hw dashboard hindcast
 
-all: clean backfill train infer
+all: clean backfill train infer hindcast
 
 backfill:
 	python src/backfill.py
@@ -13,6 +13,9 @@ train:
 
 infer:
 	python src/inference.py
+
+hindcast:
+	python src/hindcast.py
 
 features:
 	python src/feature_pipeline.py
