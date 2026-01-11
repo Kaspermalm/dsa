@@ -4,6 +4,8 @@
 
 Benedict Wolff and Kasper Malm
 
+**Live Dashboard:** https://jgfegecmrc7zj3cuzcimz9.streamlit.app
+
 ## Research Objective
 
 Investigate whether news coverage, analyzed through sentiment extraction, can predict content moderation decisions reported in the DSA Transparency Database.
@@ -70,11 +72,15 @@ Content moderation appears driven by internal platform processes and schedules, 
 
 | Script | Make Command | Purpose |
 |--------|--------------|---------|
-| backfill_data.py | `make backfill` | Fetch 365 days of DSA + news data |
-| train_model.py | `make train` | Train gradient boosting model |
-| daily_update.py | `make daily` | Fetch today's DSA + news |
+| backfill.py | `make backfill` | Fetch 365 days of DSA + news data |
+| train.py | `make train` | Train gradient boosting model |
+| daily.py | `make daily` | Fetch today's DSA + news |
 | inference.py | `make infer` | Make predictions + track accuracy |
-| generate_sample_data.py | - | Generate test data without API |
+| hindcast.py | `make hindcast` | Walk-forward backtesting validation |
+| dashboard.py | `make dashboard` | Launch Streamlit dashboard |
+| feature_pipeline.py | `make features` | Upload features to Hopsworks |
+| training_pipeline.py | `make train-hw` | Train model using Hopsworks |
+| inference_pipeline.py | `make infer-hw` | Run inference with Hopsworks |
 
 ## Usage
 
@@ -82,16 +88,18 @@ Content moderation appears driven by internal platform processes and schedules, 
 make backfill    # Fetch 365 days of DSA + news data
 make train       # Train gradient boosting model
 make infer       # Make predictions + track accuracy
+make hindcast    # Run walk-forward backtesting
 make daily       # Fetch today's DSA + news
+make dashboard   # Launch Streamlit dashboard
 make clean       # Remove csv, img, model folders
-make all         # Run backfill, train, infer
+make all         # Run backfill, train, infer, hindcast
 ```
 
-Or run scripts directly:
+Hopsworks integration:
 ```bash
-python backfill_data.py
-python train_model.py
-python inference.py
+make features    # Upload features to Hopsworks Feature Store
+make train-hw    # Train model using Hopsworks
+make infer-hw    # Run inference with Hopsworks
 ```
 
 Daily updates:
@@ -107,6 +115,8 @@ csv/
   news_history.csv            # News articles with sentiment
   dsa_news_combined.csv       # Daily aggregated features
   predictions_history.csv     # Predictions vs actuals
+  hindcast_results.csv        # Walk-forward backtest predictions
+  hindcast_metrics.csv        # Backtest accuracy by horizon
 
 img/
   backfill_visualization.png  # DSA + sentiment overview
@@ -114,6 +124,7 @@ img/
   feature_importance.png      # Feature rankings
   forecast_next_week.png      # 7-day forecast
   prediction_accuracy.png     # Prediction tracking
+  hindcast_results.png        # Backtest visualization
 
 model/
   dsa_model.pkl               # Trained model
@@ -122,12 +133,28 @@ model/
 
 ## Results
 
-The model achieved poor validation performance (R² = -60.27) due to:
+### Hindcast (Backtesting) Performance
 
-1. A regime change in DSA reporting around June 2025 (3.5M → 200K daily reports)
-2. News sentiment features contributing <0.1% to predictions
+Walk-forward validation over 10 months (301 predictions):
 
-This supports the conclusion that platform content moderation follows internal processes rather than external news events.
+| Metric | Value | Interpretation |
+|--------|-------|----------------|
+| R² | 0.91 | Excellent - model captures trend |
+| MAPE | 63% | High - data has inherent volatility |
+| Within 10% error | 40% | |
+| Within 20% error | 57% | |
+
+| Horizon | MAPE | R² |
+|---------|------|----|
+| Day 1 | 48.8% | 0.955 |
+| Day 3 | 55.2% | 0.907 |
+| Day 7 | 64.9% | 0.856 |
+
+The high R² with high MAPE indicates the model captures the pattern/trend well, but DSA violations have significant inherent randomness (viral events, platform changes) that cannot be predicted from historical data alone.
+
+### Key Finding
+
+News sentiment features contribute <0.1% to predictions. Content moderation appears driven by internal platform processes and schedules, not reactive to external news cycles.
 
 ### Data Overview
 
